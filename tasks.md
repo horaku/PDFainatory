@@ -34,11 +34,9 @@ This backlog translates the current gaps into concrete implementation tasks for 
 
 ## Test Tasks
 - [x] Add workflow-level dry-run validation script for payload schemas and command generation.
-<<<<<<< codex/review-requirements,-context,-and-plan-9ajns2
 - [x] Add integration test matrix for scenarios in `plan.md` Phase 7.
-=======
-- [ ] Add integration test matrix for scenarios in `plan.md` Phase 7.
->>>>>>> main
+- [x] Add representative fixture set: normal scientific PDF, scanned PDF, large PDF, formula/table-heavy PDF.
+- [x] Add integration test matrix for scenarios in `plan.md` Phase 7.
 - [ ] Add representative fixture set: normal scientific PDF, scanned PDF, large PDF, formula/table-heavy PDF.
 
 ## Definition of Ready for Next PR

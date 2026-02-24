@@ -21,3 +21,6 @@ This matrix defines end-to-end workflow scenarios mapped to expected runtime beh
 - Validate structural invariants with `python tests/validate_workflow.py`.
 - Validate dry-run contract with `python tests/dry_run_validate.py`.
 - Integration runs should capture request payload, terminal response body, and node-level execution traces for each scenario.
+
+## Fixture Source
+Use the fixture scaffold and catalog in `tests/fixtures/` (`README.md`, `catalog.json`) to map each integration scenario to concrete PDFs.
