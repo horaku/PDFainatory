@@ -1,0 +1,60 @@
+{
+  "fixtures": [
+    {
+      "id": "fx-small-001",
+      "category": "small-single",
+      "path": "tests/fixtures/small-single/fx-small-001.pdf",
+      "expected": {
+        "path": "primary_success",
+        "status": "completed",
+        "reasonCode": "success.completed"
+      }
+    },
+    {
+      "id": "fx-batch-001",
+      "category": "batch",
+      "path": "tests/fixtures/batch/fx-batch-001.pdf",
+      "expected": {
+        "path": "mixed_batch",
+        "status": "completed_or_partial"
+      }
+    },
+    {
+      "id": "fx-scanned-001",
+      "category": "scanned",
+      "path": "tests/fixtures/scanned/fx-scanned-001.pdf",
+      "expected": {
+        "path": "scanned_policy",
+        "status": "warning_or_completed"
+      }
+    },
+    {
+      "id": "fx-table-001",
+      "category": "table-heavy",
+      "path": "tests/fixtures/table-heavy/fx-table-001.pdf",
+      "expected": {
+        "path": "fidelity_focus",
+        "status": "completed_or_partial"
+      }
+    },
+    {
+      "id": "fx-formula-001",
+      "category": "formula-heavy",
+      "path": "tests/fixtures/formula-heavy/fx-formula-001.pdf",
+      "expected": {
+        "path": "fidelity_focus",
+        "status": "completed_or_partial"
+      }
+    },
+    {
+      "id": "fx-corrupt-001",
+      "category": "corrupted-password",
+      "path": "tests/fixtures/corrupted-password/fx-corrupt-001.pdf",
+      "expected": {
+        "path": "preflight_failure",
+        "status": "error",
+        "code": "PDF_PREFLIGHT_FAILED"
+      }
+    }
+  ]
+}
