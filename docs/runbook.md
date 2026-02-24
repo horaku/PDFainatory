@@ -67,3 +67,7 @@ POST payload (example):
 - Add persistent run-state store for resume/re-run by `runId`.
 - Add artifact publication node (S3/MinIO) and signed URL response.
 - Add email/chat adapters and dedup/rate-limit policy for notifications.
+
+## 6) Validation Tooling
+- Run `python tests/dry_run_validate.py` for dry-run contract checks (payload normalization fields, command generation invariants, and success response schema fields).
+- Run `python tests/validate_workflow.py` for graph/node wiring invariants.

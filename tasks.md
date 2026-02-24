@@ -33,7 +33,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
   - Acceptance: webhook caller and optional channel (email/chat) receive status with reason codes.
 
 ## Test Tasks
-- [ ] Add workflow-level dry-run validation script for payload schemas and command generation.
+- [x] Add workflow-level dry-run validation script for payload schemas and command generation.
 - [ ] Add integration test matrix for scenarios in `plan.md` Phase 7.
 - [ ] Add representative fixture set: normal scientific PDF, scanned PDF, large PDF, formula/table-heavy PDF.
 
