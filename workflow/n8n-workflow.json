@@ -1,0 +1,967 @@
+{
+  "name": "PDFainatory ja->ru Translation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pdfainatory/translate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_Trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs = require('fs');\nconst crypto = require('crypto');\n\nconst body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nif (!files.length) throw new Error('No input files provided.');\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nconst allowedServices = ['openai', 'google', 'ollama'];\nconst requestedService = (body.service ?? 'openai').toLowerCase();\nif (!allowedServices.includes(requestedService)) throw new Error(`Unsupported service: ${requestedService}`);\nconst serviceChain = [requestedService, ...allowedServices.filter(s => s !== requestedService)];\nconst safePath = (p) => {\n  if (typeof p !== 'string' || !p.trim()) throw new Error('Invalid file path');\n  if (!/^[\\w@%+=:,./\\- ]+$/u.test(p)) throw new Error(`Unsafe path characters: ${p}`);\n  return p;\n};\nconst safeOptPath = (p) => p ? safePath(p) : '';\nconst runStateDir = safePath(body.runStateDir ?? '/data/state');\nconst hashFile = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');\n\nreturn files.map((file, idx) => {\n  const inputFile = safePath(file);\n  return {\n    json: {\n      runId: body.runId ?? `${Date.now()}-${idx}`,\n      inputFile,\n      inputFileHash: hashFile(inputFile),\n      runStartedAt: new Date().toISOString(),\n      outputDir: safePath(body.outputDir ?? '/data/output'),\n      runStateDir,\n      artifactBaseUrl: (body.artifactBaseUrl ?? '').trim(),\n      artifactStoragePrefix: safePath(body.artifactStoragePrefix ?? '/artifacts'),\n      langIn: sourceLang,\n      langOut: targetLang,\n      pages: body.pages ?? '',\n      poolMaxWorkers: Math.max(1, Math.min(8, Number(body.poolMaxWorkers ?? 2))),\n      customPromptPath: safeOptPath(body.customPromptPath ?? ''),\n      glossaryPath: safeOptPath(body.glossaryPath ?? ''),\n      primaryFontFamily: (body.primaryFontFamily ?? 'Noto Serif').replace(/[\"`]/g, ''),\n      serviceChain,\n      serviceIndex: 0,\n      currentService: serviceChain[0],\n      scannedHint: Boolean(body.scannedHint ?? false),\n      allowOcrWorkaround: Boolean(body.allowOcrWorkaround ?? false)\n    }\n  };\n});"
+      },
+      "id": "Validate_Normalize",
+      "name": "Validate & Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const f = $json.inputFile;\nif (!/\\.pdf$/i.test(f)) throw new Error(`Invalid file extension: ${f}`);\nreturn [{ json: { ...$json } }];"
+      },
+      "id": "Validate_PDF",
+      "name": "Validate PDF Extension",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const scannedHint = Boolean($json.scannedHint ?? false);\nconst allowOcrWorkaround = Boolean($json.allowOcrWorkaround ?? false);\nif (scannedHint && !allowOcrWorkaround) {\n  return [{ json: { ...$json, scannedBlocked: true, code: 'SCANNED_REQUIRES_OCR', message: 'Scanned PDF detected. Pre-OCR is required before translation.' } }];\n}\nreturn [{ json: { ...$json, scannedBlocked: false } }];"
+      },
+      "id": "Evaluate_Scanned_Policy",
+      "name": "Evaluate Scanned Policy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.scannedBlocked}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Scanned_Blocked",
+      "name": "Scanned Blocked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, status: 'warning', code: ($json.code || 'SCANNED_REQUIRES_OCR'), message: ($json.message || 'Scanned PDF requires OCR preprocessing'), action: 'run_ocr_then_retry' } }}",
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "Respond_Scanned_Warning",
+      "name": "Respond Scanned Warning",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cmd = `qpdf --check \"${$json.inputFile}\"`;\nreturn [{ json: { ...$json, preflightCommand: cmd } }];"
+      },
+      "id": "Build_Preflight",
+      "name": "Build Corrupt/Encrypted Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.preflightCommand}}"
+      },
+      "id": "Run_Preflight",
+      "name": "Run PDF Preflight Check",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        320
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode || 0}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "If_Preflight_OK",
+      "name": "Preflight Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const serviceFlagMap = { openai: '--openai', google: '--google', ollama: '--ollama' };\nconst pagesArg = $json.pages ? ` --pages \"${$json.pages}\"` : '';\nconst promptArg = $json.customPromptPath ? ` --custom-system-prompt \"${$json.customPromptPath}\"` : '';\nconst glossaryArg = $json.glossaryPath ? ` --glossaries \"${$json.glossaryPath}\"` : '';\nconst ocrArg = $json.allowOcrWorkaround ? ' --auto-enable-ocr-workaround' : '';\nconst serviceFlag = serviceFlagMap[$json.currentService] ?? '--openai';\nconst cmd = [\n  'pdf2zh-next',\n  `\"${$json.inputFile}\"`,\n  '--lang-in ja',\n  '--lang-out ru',\n  '--bilingual',\n  serviceFlag,\n  `--output \"${$json.outputDir}\"`,\n  `--pool-max-workers ${$json.poolMaxWorkers}`,\n  `--primary-font-family \"${$json.primaryFontFamily}\"`,\n  promptArg,\n  glossaryArg,\n  pagesArg,\n  ocrArg\n].filter(Boolean).join(' ');\nreturn [{ json: { ...$json, command: cmd } }];"
+      },
+      "id": "Build_Command",
+      "name": "Build Translation Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.command}}"
+      },
+      "id": "Run_Primary",
+      "name": "Run Translation",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode || 0}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "If_Primary_OK",
+      "name": "Primary Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const nextIndex = ($json.serviceIndex ?? 0) + 1;\nif (nextIndex >= $json.serviceChain.length) return [{ json: { ...$json, hasFallback: false } }];\nreturn [{ json: { ...$json, hasFallback: true, serviceIndex: nextIndex, currentService: $json.serviceChain[nextIndex] } }];"
+      },
+      "id": "Build_Fallback_Context",
+      "name": "Build Fallback Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.hasFallback}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Fallback_Available",
+      "name": "Fallback Available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const serviceFlagMap = { openai: '--openai', google: '--google', ollama: '--ollama' };\nconst pagesArg = $json.pages ? ` --pages \"${$json.pages}\"` : '';\nconst promptArg = $json.customPromptPath ? ` --custom-system-prompt \"${$json.customPromptPath}\"` : '';\nconst glossaryArg = $json.glossaryPath ? ` --glossaries \"${$json.glossaryPath}\"` : '';\nconst ocrArg = $json.allowOcrWorkaround ? ' --auto-enable-ocr-workaround' : '';\nconst serviceFlag = serviceFlagMap[$json.currentService] ?? '--ollama';\nconst cmd = [\n  'pdf2zh-next',\n  `\"${$json.inputFile}\"`,\n  '--lang-in ja',\n  '--lang-out ru',\n  '--bilingual',\n  serviceFlag,\n  '--ignore-cache',\n  `--output \"${$json.outputDir}\"`,\n  `--pool-max-workers ${$json.poolMaxWorkers}`,\n  `--primary-font-family \"${$json.primaryFontFamily}\"`,\n  promptArg,\n  glossaryArg,\n  pagesArg,\n  ocrArg\n].filter(Boolean).join(' ');\nreturn [{ json: { ...$json, fallbackCommand: cmd } }];"
+      },
+      "id": "Build_Fallback_Command",
+      "name": "Build Fallback Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.fallbackCommand}}"
+      },
+      "id": "Run_Fallback",
+      "name": "Run Fallback Translation",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        220
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode || 0}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "If_Fallback_OK",
+      "name": "Fallback Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "options": {}
+      },
+      "id": "Respond_Success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3460,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, status: 'error', code: 'PDF_PREFLIGHT_FAILED', message: ($json.stderr || $json.message || 'PDF is corrupted or password-protected'), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "Respond_Preflight_Error",
+      "name": "Respond Preflight Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, status: 'error', code: 'TRANSLATION_FAILED', providerTried: $json.serviceChain ?? [], message: ($json.stderr || $json.message || 'Translation failed across provider chain'), errorClass: ($json.errorClass || 'translation.provider_chain_exhausted'), retryable: Boolean($json.retryable ?? false), retryAttempt: Number($json.retryAttempt || 0), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "id": "Respond_Translation_Error",
+      "name": "Respond Translation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3460,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const endedAt = new Date().toISOString();\nconst commandArgs = ($json.command || $json.fallbackCommand || '').replace(/^pdf2zh-next\\s*/, '');\nreturn [{ json: { ...$json, audit: { runId: $json.runId, inputFile: $json.inputFile, inputFileHash: $json.inputFileHash, provider: $json.currentService, commandArgs, runStartedAt: $json.runStartedAt, runEndedAt: endedAt, status: 'completed', errorClass: null } } }];"
+      },
+      "id": "Build_Success_Audit",
+      "name": "Build Success Audit Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const endedAt = new Date().toISOString();\nreturn [{ json: { ...$json, audit: { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, inputFileHash: $json.inputFileHash ?? null, provider: $json.currentService ?? null, commandArgs: '', runStartedAt: $json.runStartedAt ?? null, runEndedAt: endedAt, status: 'failed', errorClass: 'validation.pdf_preflight' } } }];"
+      },
+      "id": "Build_Preflight_Audit",
+      "name": "Build Preflight Audit Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const endedAt = new Date().toISOString();\nconst commandArgs = ($json.command || $json.fallbackCommand || '').replace(/^pdf2zh-next\\s*/, '');\nreturn [{ json: { ...$json, audit: { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, inputFileHash: $json.inputFileHash ?? null, provider: $json.currentService ?? null, commandArgs, runStartedAt: $json.runStartedAt ?? null, runEndedAt: endedAt, status: 'failed', errorClass: ($json.errorClass || 'translation.provider_chain_exhausted') } } }];"
+      },
+      "id": "Build_Translation_Audit",
+      "name": "Build Translation Error Audit Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const stderr = String($json.stderr || $json.stdout || $json.message || '').toLowerCase();\nconst retryablePatterns = [ /timeout/, /timed out/, /429/, /rate limit/, /temporarily unavailable/, /connection reset/, /econnreset/, /econnrefused/, /5\\d\\d/ ];\nconst nonRetryablePatterns = [ /invalid file/, /unsupported/, /permission denied/, /no such file/, /not found/, /unsafe path/, /invalid.*path/, /pipeline currently supports only ja->ru/ ];\nlet errorClass = 'translation.unknown';\nlet retryable = false;\nif (retryablePatterns.some((p) => p.test(stderr))) { errorClass = 'translation.transient'; retryable = true; }\nif (nonRetryablePatterns.some((p) => p.test(stderr))) { errorClass = 'translation.non_retryable_input'; retryable = false; }\nreturn [{ json: { ...$json, errorClass, retryable, retryAttempt: Number($json.retryAttempt || 0) } }];"
+      },
+      "id": "Classify_Translation_Error",
+      "name": "Classify Translation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.retryable && ($json.retryAttempt || 0) < 1}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Primary_Retryable",
+      "name": "Retryable Primary Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return [{ json: { ...$json, retryAttempt: Number($json.retryAttempt || 0) + 1 } }];"
+      },
+      "id": "Inc_Primary_Retry",
+      "name": "Increment Primary Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.command}}"
+      },
+      "id": "Run_Primary_Retry",
+      "name": "Run Translation Retry",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        500
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode || 0}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "If_Primary_Retry_OK",
+      "name": "Primary Retry Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3240,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst endedAt = $json.audit?.runEndedAt ?? new Date().toISOString();\nconst state = {\n  runId: $json.runId ?? null,\n  inputFile: $json.inputFile ?? null,\n  inputFileHash: $json.inputFileHash ?? null,\n  status: $json.audit?.status ?? ($json.status || 'unknown'),\n  provider: $json.currentService ?? null,\n  errorClass: $json.audit?.errorClass ?? ($json.errorClass || null),\n  retryAttempt: Number($json.retryAttempt || 0),\n  updatedAt: endedAt\n};\nconst dir = $json.runStateDir || '/data/state';\nconst safeRun = String($json.runId || 'unknown').replace(/[^\\w.-]/g, '_');\nconst safeHash = String($json.inputFileHash || 'unknown').replace(/[^\\w.-]/g, '_');\nconst fileName = `${safeRun}-${safeHash}.json`;\nfs.mkdirSync(dir, { recursive: true });\nconst stateFile = path.join(dir, fileName);\nfs.writeFileSync(stateFile, JSON.stringify(state));\nreturn [{ json: { ...$json, runStateFile: stateFile, runState: state } }];"
+      },
+      "id": "Persist_Run_State",
+      "name": "Persist Run State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.audit?.status || ''}}",
+              "operation": "equal",
+              "value2": "completed"
+            }
+          ]
+        }
+      },
+      "id": "If_State_Success",
+      "name": "State Is Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3900,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.audit?.errorClass || ''}}",
+              "operation": "contains",
+              "value2": "validation.pdf_preflight"
+            }
+          ]
+        }
+      },
+      "id": "If_State_Preflight",
+      "name": "State Is Preflight Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4120,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst inputBase = path.basename($json.inputFile || '', path.extname($json.inputFile || ''));\nconst outDir = $json.outputDir || '/data/output';\nlet matched = [];\ntry {\n  const entries = fs.readdirSync(outDir);\n  matched = entries\n    .filter((name) => /\\.pdf$/i.test(name) && name.includes(inputBase))\n    .map((name) => {\n      const full = path.join(outDir, name);\n      const st = fs.statSync(full);\n      return { file: full, size: st.size, mtimeMs: st.mtimeMs };\n    })\n    .filter((x) => x.size > 0)\n    .sort((a, b) => b.mtimeMs - a.mtimeMs);\n} catch (e) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: `Output directory check failed: ${e.message}`, errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nif (!matched.length) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: 'No non-empty output PDF artifact found', errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nreturn [{ json: { ...$json, outputIntegrityPassed: true, outputFile: matched[0].file } }];"
+      },
+      "id": "Validate_Output_Integrity",
+      "name": "Validate Output Integrity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.outputIntegrityPassed}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Output_Integrity_OK",
+      "name": "Output Integrity Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3660,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const path = require('path');\nconst outputFile = $json.outputFile || '';\nconst baseUrl = String($json.artifactBaseUrl || '').replace(/\\/$/, '');\nconst storagePrefix = String($json.artifactStoragePrefix || '/artifacts').replace(/\\/$/, '');\nconst fileName = path.basename(outputFile || '');\nconst storageKey = `${storagePrefix}/${fileName}`.replace(/\\/+/g, '/');\nconst downloadUrl = baseUrl ? `${baseUrl}${storageKey}` : '';\nreturn [{ json: { ...$json, artifact: { fileName, storageKey, downloadUrl: downloadUrl || null } } }];"
+      },
+      "id": "Publish_Artifact_Metadata",
+      "name": "Publish Artifact Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3900,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate PDF Extension",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PDF Extension": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Scanned Policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Corrupt/Encrypted Check": {
+      "main": [
+        [
+          {
+            "node": "Run PDF Preflight Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run PDF Preflight Check": {
+      "main": [
+        [
+          {
+            "node": "Preflight Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preflight Passed?": {
+      "main": [
+        [
+          {
+            "node": "Build Translation Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Preflight Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Translation Command": {
+      "main": [
+        [
+          {
+            "node": "Run Translation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Translation": {
+      "main": [
+        [
+          {
+            "node": "Primary Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Primary Success?": {
+      "main": [
+        [
+          {
+            "node": "Validate Output Integrity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Translation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fallback Context": {
+      "main": [
+        [
+          {
+            "node": "Fallback Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Available?": {
+      "main": [
+        [
+          {
+            "node": "Build Fallback Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fallback Command": {
+      "main": [
+        [
+          {
+            "node": "Run Fallback Translation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Fallback Translation": {
+      "main": [
+        [
+          {
+            "node": "Fallback Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Success?": {
+      "main": [
+        [
+          {
+            "node": "Validate Output Integrity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Scanned Policy": {
+      "main": [
+        [
+          {
+            "node": "Scanned Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scanned Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Respond Scanned Warning",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Corrupt/Encrypted Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Persist Run State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Preflight Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Persist Run State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Translation Error Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Persist Run State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Translation Error": {
+      "main": [
+        [
+          {
+            "node": "Retryable Primary Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retryable Primary Error?": {
+      "main": [
+        [
+          {
+            "node": "Increment Primary Retry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Primary Retry": {
+      "main": [
+        [
+          {
+            "node": "Run Translation Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Translation Retry": {
+      "main": [
+        [
+          {
+            "node": "Primary Retry Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Primary Retry Success?": {
+      "main": [
+        [
+          {
+            "node": "Build Success Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Fallback Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Run State": {
+      "main": [
+        [
+          {
+            "node": "State Is Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Is Success?": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "State Is Preflight Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Is Preflight Error?": {
+      "main": [
+        [
+          {
+            "node": "Respond Preflight Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Translation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Output Integrity": {
+      "main": [
+        [
+          {
+            "node": "Output Integrity Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Integrity Passed?": {
+      "main": [
+        [
+          {
+            "node": "Publish Artifact Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Artifact Metadata": {
+      "main": [
+        [
+          {
+            "node": "Build Success Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
