@@ -283,7 +283,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputFileName: $json.outputFileName ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', outputNaming: { outputNameBase: $json.outputNameBase ?? null, outputMode: $json.outputMode ?? null, outputVersion: $json.outputVersion ?? null, sourceStem: $json.sourceStem ?? null }, qualitySummary: ($json.qualitySummary || null), artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputFileName: $json.outputFileName ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: ($json.runOutcomeStatus ?? $json.notification?.status ?? 'completed'), reasonCode: ($json.runOutcomeReasonCode ?? $json.notification?.reasonCode ?? 'success.completed'), outputNaming: { outputNameBase: $json.outputNameBase ?? null, outputMode: $json.outputMode ?? null, outputVersion: $json.outputVersion ?? null, sourceStem: $json.sourceStem ?? null }, qualitySummary: ($json.qualitySummary || null), artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
         "options": {}
       },
       "id": "Respond_Success",
@@ -588,7 +588,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const recovered = Number($json.retryAttempt ?? 0) > 0 || Number($json.serviceIndex ?? 0) > 0 || ($json.qualitySummary?.verdict === 'warn');\nconst status = recovered ? 'partial' : 'completed';\nconst reasonCode = recovered ? 'success.partial_recovered' : 'success.completed';\nconst shouldNotify = recovered ? Boolean($json.notifyOnPartial ?? true) : Boolean($json.notifyOnSuccess ?? false);\nreturn [{ json: { ...$json, notification: { reasonCode, status, shouldNotify, webhookUrl: $json.notificationWebhookUrl || '', payload: { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, status, reasonCode, provider: $json.currentService, outputFileName: $json.outputFileName ?? null, artifact: $json.artifact ?? null, qualitySummary: $json.qualitySummary ?? null, audit: $json.audit ?? null } } } } }];"
+        "jsCode": "const recovered = Number($json.retryAttempt ?? 0) > 0 || Number($json.serviceIndex ?? 0) > 0 || ($json.qualitySummary?.verdict === 'warn');\nconst status = recovered ? 'partial' : 'completed';\nconst reasonCode = recovered ? 'success.partial_recovered' : 'success.completed';\nconst shouldNotify = recovered ? Boolean($json.notifyOnPartial ?? true) : Boolean($json.notifyOnSuccess ?? false);\nconst audit = { ...($json.audit || {}), status };\nreturn [{ json: { ...$json, audit, runOutcomeStatus: status, runOutcomeReasonCode: reasonCode, notification: { reasonCode, status, shouldNotify, webhookUrl: $json.notificationWebhookUrl || '', payload: { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, status, reasonCode, provider: $json.currentService, outputFileName: $json.outputFileName ?? null, artifact: $json.artifact ?? null, qualitySummary: $json.qualitySummary ?? null, audit } } } } }];"
       },
       "id": "Code_Build_Success_Notification",
       "name": "Build Success Notification",

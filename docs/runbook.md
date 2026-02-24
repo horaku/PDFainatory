@@ -51,7 +51,7 @@ POST payload (example):
 15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
 16. Build fidelity checklist summary (`formula/table/multiColumn/headersFooters`) with pass/warn verdict.
 17. Build optional operator notifications for success/partial/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` via n8n HTTP Request nodes when enabled.
-18. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
+18. Return response JSON with operation status (`completed` or `partial`) and `reasonCode`, plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.

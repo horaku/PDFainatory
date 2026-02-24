@@ -61,6 +61,8 @@ assert 'translation.non_retryable_input' in classify
 success_notification = next(n for n in wf['nodes'] if n['name'] == 'Build Success Notification')['parameters']['jsCode']
 assert 'success.partial_recovered' in success_notification
 assert 'notifyOnPartial' in success_notification
+assert 'runOutcomeStatus' in success_notification
+assert 'runOutcomeReasonCode' in success_notification
 
 build = next(n for n in wf['nodes'] if n['name'] == 'Build Translation Command')['parameters']['jsCode']
 assert '--bilingual' in build
@@ -125,5 +127,7 @@ assert 'artifact' in respond_success
 assert 'outputNaming' in respond_success
 assert 'outputFileName' in respond_success
 assert 'qualitySummary' in respond_success
+assert 'reasonCode' in respond_success
+assert 'runOutcomeStatus' in respond_success
 
 print('workflow checks passed')
