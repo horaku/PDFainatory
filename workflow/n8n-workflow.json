@@ -1,0 +1,259 @@
+{
+  "name": "PDFainatory ja->ru Translation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pdfainatory/translate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_Trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (!files.length) throw new Error('No input files provided.');\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nreturn files.map((file, idx) => ({\n  json: {\n    runId: body.runId ?? `${Date.now()}-${idx}`,\n    inputFile: file,\n    outputDir: body.outputDir ?? '/data/output',\n    langIn: sourceLang,\n    langOut: targetLang,\n    pages: body.pages ?? '',\n    service: body.service ?? 'openai',\n    poolMaxWorkers: body.poolMaxWorkers ?? 2,\n    customPromptPath: body.customPromptPath ?? '',\n    glossaryPath: body.glossaryPath ?? '',\n    primaryFontFamily: body.primaryFontFamily ?? 'Noto Serif',\n    ignoreCacheFallback: true\n  }\n}));"
+      },
+      "id": "Validate_Normalize",
+      "name": "Validate & Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const f = $json.inputFile;\nif (!/\\.pdf$/i.test(f)) throw new Error(`Invalid file extension: ${f}`);\nreturn [{ json: { ...$json, isPdf: true } }];"
+      },
+      "id": "Validate_PDF",
+      "name": "Validate PDF Extension",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const pagesArg = $json.pages ? ` --pages \"${$json.pages}\"` : '';\nconst promptArg = $json.customPromptPath ? ` --custom-system-prompt \"${$json.customPromptPath}\"` : '';\nconst glossaryArg = $json.glossaryPath ? ` --glossaries \"${$json.glossaryPath}\"` : '';\nconst cmd = [\n  'pdf2zh-next',\n  `\"${$json.inputFile}\"`,\n  '--lang-in ja',\n  '--lang-out ru',\n  `--output \"${$json.outputDir}\"`,\n  `--pool-max-workers ${$json.poolMaxWorkers}`,\n  `--primary-font-family \"${$json.primaryFontFamily}\"`,\n  promptArg,\n  glossaryArg,\n  pagesArg\n].filter(Boolean).join(' ');\nreturn [{ json: { ...$json, command: cmd } }];"
+      },
+      "id": "Build_Command",
+      "name": "Build Translation Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.command}}"
+      },
+      "id": "Run_PDFMathTranslate",
+      "name": "Run PDFMathTranslate-next",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.stderr || ''}}",
+              "operation": "contains",
+              "value2": "rate limit"
+            }
+          ]
+        }
+      },
+      "id": "Check_RateLimit",
+      "name": "Rate Limit Detected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fallback = `${$json.command} --ignore-cache`;\nreturn [{ json: { ...$json, fallbackCommand: fallback, fallbackService: 'ollama' } }];"
+      },
+      "id": "Build_Fallback",
+      "name": "Build Fallback Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.fallbackCommand}}"
+      },
+      "id": "Run_Fallback",
+      "name": "Run Fallback Translation",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputDir: $json.outputDir, status: 'completed' } }}",
+        "options": {}
+      },
+      "id": "Respond_Success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { runId: $json.runId ?? null, status: 'error', message: $json.message ?? 'Translation failed' } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "Respond_Error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate PDF Extension",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PDF Extension": {
+      "main": [
+        [
+          {
+            "node": "Build Translation Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Translation Command": {
+      "main": [
+        [
+          {
+            "node": "Run PDFMathTranslate-next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run PDFMathTranslate-next": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Detected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Detected?": {
+      "main": [
+        [
+          {
+            "node": "Build Fallback Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fallback Command": {
+      "main": [
+        [
+          {
+            "node": "Run Fallback Translation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Fallback Translation": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
