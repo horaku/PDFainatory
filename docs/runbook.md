@@ -71,3 +71,4 @@ POST payload (example):
 ## 6) Validation Tooling
 - Run `python tests/dry_run_validate.py` for dry-run contract checks (payload normalization fields, command generation invariants, and success response schema fields).
 - Run `python tests/validate_workflow.py` for graph/node wiring invariants.
+- Integration scenario matrix: `docs/integration-test-matrix.md`.
