@@ -20,7 +20,8 @@ POST payload (example):
   "glossaryPath": "/data/config/terms.csv",
   "primaryFontFamily": "Noto Serif",
   "scannedHint": false,
-  "allowOcrWorkaround": false
+  "allowOcrWorkaround": false,
+  "runStateDir": "/data/state"
 }
 ```
 
@@ -36,7 +37,8 @@ POST payload (example):
 9. Retry once only for transient/retryable errors; fail fast for non-retryable input errors.
 10. If retry still fails, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
 11. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
-12. Return response JSON with operation status plus `audit` object and retry fields (`retryable`, `retryAttempt`).
+12. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
+13. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), and `runStateFile`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
