@@ -25,6 +25,7 @@ required = {
     'Output Integrity Passed?',
     'Publish Artifact Metadata',
     'Build Output Naming Metadata',
+    'Build Fidelity Checklist Summary',
 }
 missing = required - node_names
 assert not missing, f"Missing nodes: {sorted(missing)}"
@@ -37,6 +38,8 @@ assert 'inputFileHash' in validate
 assert 'runStartedAt' in validate
 assert 'artifactBaseUrl' in validate
 assert 'artifactStoragePrefix' in validate
+assert 'fidelityChecklistMode' in validate
+assert 'fidelityWarnMinBytes' in validate
 
 classify = next(n for n in wf['nodes'] if n['name'] == 'Classify Translation Error')['parameters']['jsCode']
 assert 'translation.transient' in classify
@@ -54,7 +57,8 @@ assert con['Fallback Success?']['main'][0][0]['node'] == 'Build Output Naming Me
 assert con['Primary Retry Success?']['main'][0][0]['node'] == 'Build Output Naming Metadata'
 assert con['Build Output Naming Metadata']['main'][0][0]['node'] == 'Validate Output Integrity'
 assert con['Output Integrity Passed?']['main'][0][0]['node'] == 'Publish Artifact Metadata'
-assert con['Publish Artifact Metadata']['main'][0][0]['node'] == 'Build Success Audit Record'
+assert con['Publish Artifact Metadata']['main'][0][0]['node'] == 'Build Fidelity Checklist Summary'
+assert con['Build Fidelity Checklist Summary']['main'][0][0]['node'] == 'Build Success Audit Record'
 assert con['Output Integrity Passed?']['main'][1][0]['node'] == 'Build Translation Error Audit Record'
 assert con['Primary Success?']['main'][1][0]['node'] == 'Classify Translation Error'
 assert con['Retryable Primary Error?']['main'][0][0]['node'] == 'Increment Primary Retry'
@@ -87,5 +91,6 @@ assert 'outputFile' in respond_success
 assert 'artifact' in respond_success
 assert 'outputNaming' in respond_success
 assert 'outputFileName' in respond_success
+assert 'qualitySummary' in respond_success
 
 print('workflow checks passed')

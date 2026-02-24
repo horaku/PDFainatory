@@ -23,7 +23,9 @@ POST payload (example):
   "allowOcrWorkaround": false,
   "runStateDir": "/data/state",
   "artifactBaseUrl": "https://files.example.com",
-  "artifactStoragePrefix": "/pdfainatory/out"
+  "artifactStoragePrefix": "/pdfainatory/out",
+  "fidelityChecklistMode": "basic",
+  "fidelityWarnMinBytes": 20480
 }
 ```
 
@@ -43,7 +45,8 @@ POST payload (example):
 13. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
 14. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
 15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
-16. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact`.
+16. Build fidelity checklist summary (`formula/table/multiColumn/headersFooters`) with pass/warn verdict.
+17. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
