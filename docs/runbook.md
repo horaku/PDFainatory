@@ -18,7 +18,9 @@ POST payload (example):
   "pages": "1-5",
   "customPromptPath": "/data/config/science_prompt.txt",
   "glossaryPath": "/data/config/terms.csv",
-  "primaryFontFamily": "Noto Serif"
+  "primaryFontFamily": "Noto Serif",
+  "scannedHint": false,
+  "allowOcrWorkaround": false
 }
 ```
 
@@ -26,18 +28,21 @@ POST payload (example):
 1. Trigger via webhook endpoint `pdfainatory/translate`.
 2. Validate and normalize request into per-file jobs.
 3. Validate `.pdf` extension before command construction.
-4. Build deterministic `pdf2zh-next` command.
-5. Execute command with retry (2 tries, 3s wait).
-6. If stderr contains `rate limit`, run fallback command (`--ignore-cache`).
-7. Return success JSON with `runId`, `inputFile`, and `outputDir`.
+4. Evaluate scanned-PDF policy: if `scannedHint=true` and `allowOcrWorkaround=false`, return warning (`409`) and stop translation.
+5. Run preflight integrity check (`qpdf --check`) and fail fast on corrupt/encrypted PDFs.
+6. Build deterministic `pdf2zh-next` command with provider flag and bilingual mode (plus OCR workaround flag when allowed).
+7. Execute command with retry (2 tries, 3s wait).
+8. On failure, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
+9. Return success JSON with `runId`, `inputFile`, `outputDir`, and provider used.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
-- Bilingual output is expected to be produced by PDFMathTranslate-next defaults/config.
+- Input paths are sanitized with an allowlist to reduce command-injection risk.
+- Scanned inputs can be blocked for mandatory pre-OCR unless OCR workaround is explicitly enabled.
+- Bilingual output is explicitly requested via `--bilingual`.
 - Each file executes independently, so one failed item should not block other items.
 
 ## 5) Next Hardening Steps
-- Add encrypted/corrupt PDF detection before execution.
 - Add explicit scanned PDF detection and OCR pre-route.
 - Add structured log sink (ELK/OpenSearch/Loki) with trace IDs.
 - Add persistent run-state store for resume/re-run by `runId`.
