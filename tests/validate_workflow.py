@@ -21,6 +21,8 @@ required = {
     'Persist Run State',
     'State Is Success?',
     'State Is Preflight Error?',
+    'Validate Output Integrity',
+    'Output Integrity Passed?',
 }
 missing = required - node_names
 assert not missing, f"Missing nodes: {sorted(missing)}"
@@ -43,13 +45,15 @@ assert '--auto-enable-ocr-workaround' in build
 con = wf['connections']
 assert con['Scanned Blocked?']['main'][0][0]['node'] == 'Respond Scanned Warning'
 assert con['Scanned Blocked?']['main'][1][0]['node'] == 'Build Corrupt/Encrypted Check'
-assert con['Primary Success?']['main'][0][0]['node'] == 'Build Success Audit Record'
+assert con['Primary Success?']['main'][0][0]['node'] == 'Validate Output Integrity'
+assert con['Fallback Success?']['main'][0][0]['node'] == 'Validate Output Integrity'
+assert con['Output Integrity Passed?']['main'][0][0]['node'] == 'Build Success Audit Record'
+assert con['Output Integrity Passed?']['main'][1][0]['node'] == 'Build Translation Error Audit Record'
 assert con['Primary Success?']['main'][1][0]['node'] == 'Classify Translation Error'
 assert con['Retryable Primary Error?']['main'][0][0]['node'] == 'Increment Primary Retry'
 assert con['Retryable Primary Error?']['main'][1][0]['node'] == 'Build Translation Error Audit Record'
 assert con['Primary Retry Success?']['main'][0][0]['node'] == 'Build Success Audit Record'
 assert con['Primary Retry Success?']['main'][1][0]['node'] == 'Build Fallback Context'
-assert con['Fallback Success?']['main'][0][0]['node'] == 'Build Success Audit Record'
 assert con['Fallback Success?']['main'][1][0]['node'] == 'Build Translation Error Audit Record'
 assert con['Preflight Passed?']['main'][1][0]['node'] == 'Build Preflight Audit Record'
 assert con['Build Success Audit Record']['main'][0][0]['node'] == 'Persist Run State'
@@ -72,5 +76,6 @@ assert 'errorClass' in respond_translation
 assert 'runStateFile' in respond_success
 assert 'runStateFile' in respond_preflight
 assert 'runStateFile' in respond_translation
+assert 'outputFile' in respond_success
 
 print('workflow checks passed')

@@ -19,7 +19,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
   - Acceptance: transient errors retry with backoff; non-retryable validation errors fail fast.
 - [x] Persist partial-progress state for resumable reruns by page range.
   - Acceptance: a failed batch can be resumed without reprocessing successful files/pages.
-- [ ] Add output integrity checks for produced artifacts.
+- [x] Add output integrity checks for produced artifacts.
   - Acceptance: incomplete/corrupt outputs are detected and marked failed.
 
 ## P2 — Product Completeness

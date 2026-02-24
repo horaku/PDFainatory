@@ -283,7 +283,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
         "options": {}
       },
       "id": "Respond_Success",
@@ -509,6 +509,40 @@
         4120,
         360
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst inputBase = path.basename($json.inputFile || '', path.extname($json.inputFile || ''));\nconst outDir = $json.outputDir || '/data/output';\nlet matched = [];\ntry {\n  const entries = fs.readdirSync(outDir);\n  matched = entries\n    .filter((name) => /\\.pdf$/i.test(name) && name.includes(inputBase))\n    .map((name) => {\n      const full = path.join(outDir, name);\n      const st = fs.statSync(full);\n      return { file: full, size: st.size, mtimeMs: st.mtimeMs };\n    })\n    .filter((x) => x.size > 0)\n    .sort((a, b) => b.mtimeMs - a.mtimeMs);\n} catch (e) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: `Output directory check failed: ${e.message}`, errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nif (!matched.length) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: 'No non-empty output PDF artifact found', errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nreturn [{ json: { ...$json, outputIntegrityPassed: true, outputFile: matched[0].file } }];"
+      },
+      "id": "Validate_Output_Integrity",
+      "name": "Validate Output Integrity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.outputIntegrityPassed}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Output_Integrity_OK",
+      "name": "Output Integrity Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3660,
+        120
+      ]
     }
   ],
   "connections": {
@@ -611,7 +645,7 @@
       "main": [
         [
           {
-            "node": "Build Success Audit Record",
+            "node": "Validate Output Integrity",
             "type": "main",
             "index": 0
           }
@@ -680,7 +714,7 @@
       "main": [
         [
           {
-            "node": "Build Success Audit Record",
+            "node": "Validate Output Integrity",
             "type": "main",
             "index": 0
           }
@@ -866,6 +900,35 @@
         [
           {
             "node": "Respond Translation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Output Integrity": {
+      "main": [
+        [
+          {
+            "node": "Output Integrity Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Integrity Passed?": {
+      "main": [
+        [
+          {
+            "node": "Build Success Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
             "type": "main",
             "index": 0
           }
