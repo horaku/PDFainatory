@@ -31,10 +31,12 @@ POST payload (example):
 4. Evaluate scanned-PDF policy: if `scannedHint=true` and `allowOcrWorkaround=false`, return warning (`409`) and stop translation.
 5. Run preflight integrity check (`qpdf --check`) and fail fast on corrupt/encrypted PDFs.
 6. Build deterministic `pdf2zh-next` command with provider flag and bilingual mode (plus OCR workaround flag when allowed).
-7. Execute command with retry (2 tries, 3s wait).
-8. On failure, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
-9. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
-10. Return response JSON with operation status plus `audit` object.
+7. Execute primary command.
+8. If primary fails, classify the error (`translation.transient` vs `translation.non_retryable_input` vs `translation.unknown`).
+9. Retry once only for transient/retryable errors; fail fast for non-retryable input errors.
+10. If retry still fails, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
+11. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
+12. Return response JSON with operation status plus `audit` object and retry fields (`retryable`, `retryAttempt`).
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.

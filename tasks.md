@@ -15,7 +15,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
 ## P1 — Reliability & Observability
 - [x] Add structured run metadata per file/page (runId, file hash, command args, start/end, status, error class).
   - Acceptance: every file emits a machine-readable audit record.
-- [ ] Implement error classification and retry policy by class.
+- [x] Implement error classification and retry policy by class.
   - Acceptance: transient errors retry with backoff; non-retryable validation errors fail fast.
 - [ ] Persist partial-progress state for resumable reruns by page range.
   - Acceptance: a failed batch can be resumed without reprocessing successful files/pages.

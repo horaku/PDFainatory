@@ -315,7 +315,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, status: 'error', code: 'TRANSLATION_FAILED', providerTried: $json.serviceChain ?? [], message: ($json.stderr || $json.message || 'Translation failed across provider chain'), audit: $json.audit } }}",
+        "responseBody": "={{ { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, status: 'error', code: 'TRANSLATION_FAILED', providerTried: $json.serviceChain ?? [], message: ($json.stderr || $json.message || 'Translation failed across provider chain'), errorClass: ($json.errorClass || 'translation.provider_chain_exhausted'), retryable: Boolean($json.retryable ?? false), retryAttempt: Number($json.retryAttempt || 0), audit: $json.audit } }}",
         "options": {
           "responseCode": 502
         }
@@ -360,7 +360,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const endedAt = new Date().toISOString();\nconst commandArgs = ($json.command || $json.fallbackCommand || '').replace(/^pdf2zh-next\\s*/, '');\nreturn [{ json: { ...$json, audit: { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, inputFileHash: $json.inputFileHash ?? null, provider: $json.currentService ?? null, commandArgs, runStartedAt: $json.runStartedAt ?? null, runEndedAt: endedAt, status: 'failed', errorClass: 'translation.provider_chain_exhausted' } } }];"
+        "jsCode": "const endedAt = new Date().toISOString();\nconst commandArgs = ($json.command || $json.fallbackCommand || '').replace(/^pdf2zh-next\\s*/, '');\nreturn [{ json: { ...$json, audit: { runId: $json.runId ?? null, inputFile: $json.inputFile ?? null, inputFileHash: $json.inputFileHash ?? null, provider: $json.currentService ?? null, commandArgs, runStartedAt: $json.runStartedAt ?? null, runEndedAt: endedAt, status: 'failed', errorClass: ($json.errorClass || 'translation.provider_chain_exhausted') } } }];"
       },
       "id": "Build_Translation_Audit",
       "name": "Build Translation Error Audit Record",
@@ -369,6 +369,89 @@
       "position": [
         3000,
         460
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const stderr = String($json.stderr || $json.stdout || $json.message || '').toLowerCase();\nconst retryablePatterns = [ /timeout/, /timed out/, /429/, /rate limit/, /temporarily unavailable/, /connection reset/, /econnreset/, /econnrefused/, /5\\d\\d/ ];\nconst nonRetryablePatterns = [ /invalid file/, /unsupported/, /permission denied/, /no such file/, /not found/, /unsafe path/, /invalid.*path/, /pipeline currently supports only ja->ru/ ];\nlet errorClass = 'translation.unknown';\nlet retryable = false;\nif (retryablePatterns.some((p) => p.test(stderr))) { errorClass = 'translation.transient'; retryable = true; }\nif (nonRetryablePatterns.some((p) => p.test(stderr))) { errorClass = 'translation.non_retryable_input'; retryable = false; }\nreturn [{ json: { ...$json, errorClass, retryable, retryAttempt: Number($json.retryAttempt || 0) } }];"
+      },
+      "id": "Classify_Translation_Error",
+      "name": "Classify Translation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.retryable && ($json.retryAttempt || 0) < 1}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "If_Primary_Retryable",
+      "name": "Retryable Primary Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return [{ json: { ...$json, retryAttempt: Number($json.retryAttempt || 0) + 1 } }];"
+      },
+      "id": "Inc_Primary_Retry",
+      "name": "Increment Primary Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{$json.command}}"
+      },
+      "id": "Run_Primary_Retry",
+      "name": "Run Translation Retry",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3000,
+        500
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode || 0}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "If_Primary_Retry_OK",
+      "name": "Primary Retry Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3240,
+        500
       ]
     }
   ],
@@ -479,7 +562,7 @@
         ],
         [
           {
-            "node": "Build Fallback Context",
+            "node": "Classify Translation Error",
             "type": "main",
             "index": 0
           }
@@ -611,6 +694,75 @@
         [
           {
             "node": "Respond Translation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Translation Error": {
+      "main": [
+        [
+          {
+            "node": "Retryable Primary Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retryable Primary Error?": {
+      "main": [
+        [
+          {
+            "node": "Increment Primary Retry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Primary Retry": {
+      "main": [
+        [
+          {
+            "node": "Run Translation Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Translation Retry": {
+      "main": [
+        [
+          {
+            "node": "Primary Retry Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Primary Retry Success?": {
+      "main": [
+        [
+          {
+            "node": "Build Success Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Fallback Context",
             "type": "main",
             "index": 0
           }
