@@ -25,7 +25,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
 ## P2 — Product Completeness
 - [x] Add artifact publication node (S3/MinIO/local download URL).
   - Acceptance: API response includes a downloadable link or storage key for each output file.
-- [ ] Enforce bilingual output naming/versioning convention.
+- [x] Enforce bilingual output naming/versioning convention.
   - Acceptance: predictable output path schema includes runId + source file stem + mode.
 - [ ] Add fidelity verification checklist execution (formula/table/list/header/footer checks).
   - Acceptance: workflow returns a quality summary with pass/warn/fail flags.

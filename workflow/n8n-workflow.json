@@ -283,7 +283,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputFileName: $json.outputFileName ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', outputNaming: { outputNameBase: $json.outputNameBase ?? null, outputMode: $json.outputMode ?? null, outputVersion: $json.outputVersion ?? null, sourceStem: $json.sourceStem ?? null }, artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
         "options": {}
       },
       "id": "Respond_Success",
@@ -513,7 +513,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst inputBase = path.basename($json.inputFile || '', path.extname($json.inputFile || ''));\nconst outDir = $json.outputDir || '/data/output';\nlet matched = [];\ntry {\n  const entries = fs.readdirSync(outDir);\n  matched = entries\n    .filter((name) => /\\.pdf$/i.test(name) && name.includes(inputBase))\n    .map((name) => {\n      const full = path.join(outDir, name);\n      const st = fs.statSync(full);\n      return { file: full, size: st.size, mtimeMs: st.mtimeMs };\n    })\n    .filter((x) => x.size > 0)\n    .sort((a, b) => b.mtimeMs - a.mtimeMs);\n} catch (e) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: `Output directory check failed: ${e.message}`, errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nif (!matched.length) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: 'No non-empty output PDF artifact found', errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nreturn [{ json: { ...$json, outputIntegrityPassed: true, outputFile: matched[0].file } }];"
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst inputBase = $json.outputNameBase || path.basename($json.inputFile || '', path.extname($json.inputFile || ''));\nconst outDir = $json.outputDir || '/data/output';\nlet matched = [];\ntry {\n  const entries = fs.readdirSync(outDir);\n  matched = entries\n    .filter((name) => /\\.pdf$/i.test(name) && name.includes(inputBase))\n    .map((name) => {\n      const full = path.join(outDir, name);\n      const st = fs.statSync(full);\n      return { file: full, size: st.size, mtimeMs: st.mtimeMs, fileName: name };\n    })\n    .filter((x) => x.size > 0)\n    .sort((a, b) => b.mtimeMs - a.mtimeMs);\n} catch (e) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: `Output directory check failed: ${e.message}`, errorClass: 'output.integrity_failed', message: `Output directory check failed: ${e.message}` } }];\n}\nif (!matched.length) {\n  return [{ json: { ...$json, outputIntegrityPassed: false, outputIntegrityMessage: `No non-empty output PDF artifact found for base ${inputBase}`, errorClass: 'output.integrity_failed', message: `No non-empty output PDF artifact found for base ${inputBase}` } }];\n}\nreturn [{ json: { ...$json, outputIntegrityPassed: true, outputFile: matched[0].file, outputFileName: matched[0].fileName } }];"
       },
       "id": "Validate_Output_Integrity",
       "name": "Validate Output Integrity",
@@ -547,7 +547,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const path = require('path');\nconst outputFile = $json.outputFile || '';\nconst baseUrl = String($json.artifactBaseUrl || '').replace(/\\/$/, '');\nconst storagePrefix = String($json.artifactStoragePrefix || '/artifacts').replace(/\\/$/, '');\nconst fileName = path.basename(outputFile || '');\nconst storageKey = `${storagePrefix}/${fileName}`.replace(/\\/+/g, '/');\nconst downloadUrl = baseUrl ? `${baseUrl}${storageKey}` : '';\nreturn [{ json: { ...$json, artifact: { fileName, storageKey, downloadUrl: downloadUrl || null } } }];"
+        "jsCode": "const path = require('path');\nconst outputFile = $json.outputFile || '';\nconst baseUrl = String($json.artifactBaseUrl || '').replace(/\\/$/, '');\nconst storagePrefix = String($json.artifactStoragePrefix || '/artifacts').replace(/\\/$/, '');\nconst fileName = path.basename(outputFile || '') || `${$json.outputNameBase || 'output'}.pdf`;\nconst storageKey = `${storagePrefix}/${$json.runId || 'run'}/${fileName}`.replace(/\\/+/g, '/');\nconst downloadUrl = baseUrl ? `${baseUrl}${storageKey}` : '';\nreturn [{ json: { ...$json, artifact: { fileName, storageKey, downloadUrl: downloadUrl || null, naming: { outputNameBase: $json.outputNameBase, outputMode: $json.outputMode, outputVersion: $json.outputVersion, sourceStem: $json.sourceStem } } } }];"
       },
       "id": "Publish_Artifact_Metadata",
       "name": "Publish Artifact Metadata",
@@ -556,6 +556,20 @@
       "position": [
         3900,
         80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const path = require('path');\nconst sourceStem = path.basename($json.inputFile || '', path.extname($json.inputFile || ''));\nconst runIdSafe = String($json.runId || 'run').replace(/[^\\w.-]/g, '_');\nconst sourceStemSafe = String(sourceStem || 'input').replace(/[^\\w.-]/g, '_');\nconst outputMode = 'bilingual';\nconst outputVersion = 1;\nconst outputNameBase = `${runIdSafe}-${sourceStemSafe}-${outputMode}-v${outputVersion}`;\nreturn [{ json: { ...$json, sourceStem, outputMode, outputVersion, outputNameBase } }];"
+      },
+      "id": "Build_Output_Naming",
+      "name": "Build Output Naming Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        120
       ]
     }
   ],
@@ -659,7 +673,7 @@
       "main": [
         [
           {
-            "node": "Validate Output Integrity",
+            "node": "Build Output Naming Metadata",
             "type": "main",
             "index": 0
           }
@@ -728,7 +742,7 @@
       "main": [
         [
           {
-            "node": "Validate Output Integrity",
+            "node": "Build Output Naming Metadata",
             "type": "main",
             "index": 0
           }
@@ -859,7 +873,7 @@
       "main": [
         [
           {
-            "node": "Build Success Audit Record",
+            "node": "Build Output Naming Metadata",
             "type": "main",
             "index": 0
           }
@@ -954,6 +968,17 @@
         [
           {
             "node": "Build Success Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Output Naming Metadata": {
+      "main": [
+        [
+          {
+            "node": "Validate Output Integrity",
             "type": "main",
             "index": 0
           }

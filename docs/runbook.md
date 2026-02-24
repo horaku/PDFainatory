@@ -38,11 +38,12 @@ POST payload (example):
 8. If primary fails, classify the error (`translation.transient` vs `translation.non_retryable_input` vs `translation.unknown`).
 9. Retry once only for transient/retryable errors; fail fast for non-retryable input errors.
 10. If retry still fails, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
-11. Validate output integrity by checking that a non-empty output PDF artifact exists in `outputDir` for the input stem.
-12. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
-13. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
-14. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
-15. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `artifact`.
+11. Build output naming metadata with convention `runId-sourceStem-bilingual-v1`.
+12. Validate output integrity by checking that a non-empty output PDF artifact exists in `outputDir` for the expected naming base.
+13. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
+14. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
+15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
+16. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
