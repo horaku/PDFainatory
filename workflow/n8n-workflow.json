@@ -20,7 +20,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const fs = require('fs');\nconst crypto = require('crypto');\n\nconst body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nif (!files.length) throw new Error('No input files provided.');\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nconst allowedServices = ['openai', 'google', 'ollama'];\nconst requestedService = (body.service ?? 'openai').toLowerCase();\nif (!allowedServices.includes(requestedService)) throw new Error(`Unsupported service: ${requestedService}`);\nconst serviceChain = [requestedService, ...allowedServices.filter(s => s !== requestedService)];\nconst safePath = (p) => {\n  if (typeof p !== 'string' || !p.trim()) throw new Error('Invalid file path');\n  if (!/^[\\w@%+=:,./\\- ]+$/u.test(p)) throw new Error(`Unsafe path characters: ${p}`);\n  return p;\n};\nconst safeOptPath = (p) => p ? safePath(p) : '';\nconst runStateDir = safePath(body.runStateDir ?? '/data/state');\nconst notificationWebhookUrlRaw = (body.notificationWebhookUrl ?? '').trim();\nif (notificationWebhookUrlRaw && !/^https?:\\/\\//i.test(notificationWebhookUrlRaw)) throw new Error('notificationWebhookUrl must start with http:// or https://');\nconst notificationWebhookUrl = notificationWebhookUrlRaw.replace(/\"/g, '%22');\nconst hashFile = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');\n\nreturn files.map((file, idx) => {\n  const inputFile = safePath(file);\n  return {\n    json: {\n      runId: body.runId ?? `${Date.now()}-${idx}`,\n      inputFile,\n      inputFileHash: hashFile(inputFile),\n      runStartedAt: new Date().toISOString(),\n      outputDir: safePath(body.outputDir ?? '/data/output'),\n      runStateDir,\n      artifactBaseUrl: (body.artifactBaseUrl ?? '').trim(),\n      artifactStoragePrefix: safePath(body.artifactStoragePrefix ?? '/artifacts'),\n      fidelityChecklistMode: (body.fidelityChecklistMode ?? 'basic').toLowerCase(),\n      fidelityWarnMinBytes: Math.max(1024, Number(body.fidelityWarnMinBytes ?? 20480)),\n      langIn: sourceLang,\n      langOut: targetLang,\n      pages: body.pages ?? '',\n      poolMaxWorkers: Math.max(1, Math.min(8, Number(body.poolMaxWorkers ?? 2))),\n      customPromptPath: safeOptPath(body.customPromptPath ?? ''),\n      glossaryPath: safeOptPath(body.glossaryPath ?? ''),\n      primaryFontFamily: (body.primaryFontFamily ?? 'Noto Serif').replace(/[\"`]/g, ''),\n      serviceChain,\n      serviceIndex: 0,\n      currentService: serviceChain[0],\n      scannedHint: Boolean(body.scannedHint ?? false),\n      allowOcrWorkaround: Boolean(body.allowOcrWorkaround ?? false),\n      notificationWebhookUrl,\n      notifyOnSuccess: Boolean(body.notifyOnSuccess ?? false),\n      notifyOnFailure: Boolean(body.notifyOnFailure ?? true)\n    }\n  };\n});"
+        "jsCode": "const fs = require('fs');\nconst crypto = require('crypto');\n\nconst body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nif (!files.length) throw new Error('No input files provided.');\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nconst allowedServices = ['openai', 'google', 'ollama'];\nconst requestedService = (body.service ?? 'openai').toLowerCase();\nif (!allowedServices.includes(requestedService)) throw new Error(`Unsupported service: ${requestedService}`);\nconst serviceChain = [requestedService, ...allowedServices.filter(s => s !== requestedService)];\nconst safePath = (p) => {\n  if (typeof p !== 'string' || !p.trim()) throw new Error('Invalid file path');\n  if (!/^[\\w@%+=:,./\\- ]+$/u.test(p)) throw new Error(`Unsafe path characters: ${p}`);\n  return p;\n};\nconst safeOptPath = (p) => p ? safePath(p) : '';\nconst runStateDir = safePath(body.runStateDir ?? '/data/state');\nconst notificationWebhookUrlRaw = (body.notificationWebhookUrl ?? '').trim();\nif (notificationWebhookUrlRaw && !/^https?:\\/\\//i.test(notificationWebhookUrlRaw)) throw new Error('notificationWebhookUrl must start with http:// or https://');\nconst notificationWebhookUrl = notificationWebhookUrlRaw;\nconst hashFile = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');\n\nreturn files.map((file, idx) => {\n  const inputFile = safePath(file);\n  return {\n    json: {\n      runId: body.runId ?? `${Date.now()}-${idx}`,\n      inputFile,\n      inputFileHash: hashFile(inputFile),\n      runStartedAt: new Date().toISOString(),\n      outputDir: safePath(body.outputDir ?? '/data/output'),\n      runStateDir,\n      artifactBaseUrl: (body.artifactBaseUrl ?? '').trim(),\n      artifactStoragePrefix: safePath(body.artifactStoragePrefix ?? '/artifacts'),\n      fidelityChecklistMode: (body.fidelityChecklistMode ?? 'basic').toLowerCase(),\n      fidelityWarnMinBytes: Math.max(1024, Number(body.fidelityWarnMinBytes ?? 20480)),\n      langIn: sourceLang,\n      langOut: targetLang,\n      pages: body.pages ?? '',\n      poolMaxWorkers: Math.max(1, Math.min(8, Number(body.poolMaxWorkers ?? 2))),\n      customPromptPath: safeOptPath(body.customPromptPath ?? ''),\n      glossaryPath: safeOptPath(body.glossaryPath ?? ''),\n      primaryFontFamily: (body.primaryFontFamily ?? 'Noto Serif').replace(/[\"`]/g, ''),\n      serviceChain,\n      serviceIndex: 0,\n      currentService: serviceChain[0],\n      scannedHint: Boolean(body.scannedHint ?? false),\n      allowOcrWorkaround: Boolean(body.allowOcrWorkaround ?? false),\n      notificationWebhookUrl,\n      notifyOnSuccess: Boolean(body.notifyOnSuccess ?? false),\n      notifyOnFailure: Boolean(body.notifyOnFailure ?? true)\n    }\n  };\n});"
       },
       "id": "Validate_Normalize",
       "name": "Validate & Normalize Input",
@@ -621,12 +621,17 @@
     },
     {
       "parameters": {
-        "command": "={{`printf '%s' '${Buffer.from(JSON.stringify($json.notification.payload)).toString('base64')}' | base64 -d | curl -sS -X POST -H 'content-type: application/json' --data-binary @- '${$json.notification.webhookUrl}'`}}"
+        "method": "POST",
+        "url": "={{$json.notification.webhookUrl}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.notification.payload}}",
+        "options": {}
       },
       "id": "Exec_Send_Success_Notification",
       "name": "Send Success Notification",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         4820,
         80
@@ -668,12 +673,17 @@
     },
     {
       "parameters": {
-        "command": "={{`printf '%s' '${Buffer.from(JSON.stringify($json.notification.payload)).toString('base64')}' | base64 -d | curl -sS -X POST -H 'content-type: application/json' --data-binary @- '${$json.notification.webhookUrl}'`}}"
+        "method": "POST",
+        "url": "={{$json.notification.webhookUrl}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.notification.payload}}",
+        "options": {}
       },
       "id": "Exec_Send_Preflight_Notification",
       "name": "Send Preflight Notification",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         5040,
         240
@@ -715,12 +725,17 @@
     },
     {
       "parameters": {
-        "command": "={{`printf '%s' '${Buffer.from(JSON.stringify($json.notification.payload)).toString('base64')}' | base64 -d | curl -sS -X POST -H 'content-type: application/json' --data-binary @- '${$json.notification.webhookUrl}'`}}"
+        "method": "POST",
+        "url": "={{$json.notification.webhookUrl}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.notification.payload}}",
+        "options": {}
       },
       "id": "Exec_Send_Translation_Notification",
       "name": "Send Translation Notification",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         5040,
         400

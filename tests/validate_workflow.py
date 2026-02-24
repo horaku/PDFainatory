@@ -61,6 +61,10 @@ build = next(n for n in wf['nodes'] if n['name'] == 'Build Translation Command')
 assert '--bilingual' in build
 assert '--auto-enable-ocr-workaround' in build
 
+for send_name in ['Send Success Notification', 'Send Preflight Notification', 'Send Translation Notification']:
+    send_node = next(n for n in wf['nodes'] if n['name'] == send_name)
+    assert send_node['type'] == 'n8n-nodes-base.httpRequest'
+
 con = wf['connections']
 assert con['Scanned Blocked?']['main'][0][0]['node'] == 'Respond Scanned Warning'
 assert con['Scanned Blocked?']['main'][1][0]['node'] == 'Build Corrupt/Encrypted Check'

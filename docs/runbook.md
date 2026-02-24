@@ -49,7 +49,7 @@ POST payload (example):
 14. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
 15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
 16. Build fidelity checklist summary (`formula/table/multiColumn/headersFooters`) with pass/warn verdict.
-17. Build optional operator notifications for success/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` when enabled.
+17. Build optional operator notifications for success/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` via n8n HTTP Request nodes when enabled.
 18. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
 
 ## 4) Operational Expectations
@@ -58,7 +58,7 @@ POST payload (example):
 - Scanned inputs can be blocked for mandatory pre-OCR unless OCR workaround is explicitly enabled.
 - Bilingual output is explicitly requested via `--bilingual`.
 - Each file executes independently, so one failed item should not block other items.
-- Notifications are optional and non-blocking; delivery failures do not change API response status.
+- Notifications are optional and non-blocking; delivery failures from notification HTTP requests do not change API response status.
 
 ## 5) Next Hardening Steps
 - Add explicit scanned PDF detection and OCR pre-route.
