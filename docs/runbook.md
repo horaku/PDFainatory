@@ -33,7 +33,8 @@ POST payload (example):
 6. Build deterministic `pdf2zh-next` command with provider flag and bilingual mode (plus OCR workaround flag when allowed).
 7. Execute command with retry (2 tries, 3s wait).
 8. On failure, advance through provider fallback chain (`openai -> google -> ollama`) with `--ignore-cache`.
-9. Return success JSON with `runId`, `inputFile`, `outputDir`, and provider used.
+9. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
+10. Return response JSON with operation status plus `audit` object.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
@@ -44,6 +45,6 @@ POST payload (example):
 
 ## 5) Next Hardening Steps
 - Add explicit scanned PDF detection and OCR pre-route.
-- Add structured log sink (ELK/OpenSearch/Loki) with trace IDs.
+- Wire audit objects to a persistent log sink (ELK/OpenSearch/Loki) with trace IDs.
 - Add persistent run-state store for resume/re-run by `runId`.
 - Add artifact publication node (S3/MinIO) and signed URL response.

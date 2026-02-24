@@ -13,7 +13,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
   - Acceptance: workflow uses strict escaping/allowlists for all user-provided values.
 
 ## P1 — Reliability & Observability
-- [ ] Add structured run metadata per file/page (runId, file hash, command args, start/end, status, error class).
+- [x] Add structured run metadata per file/page (runId, file hash, command args, start/end, status, error class).
   - Acceptance: every file emits a machine-readable audit record.
 - [ ] Implement error classification and retry policy by class.
   - Acceptance: transient errors retry with backoff; non-retryable validation errors fail fast.
