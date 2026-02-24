@@ -25,7 +25,10 @@ POST payload (example):
   "artifactBaseUrl": "https://files.example.com",
   "artifactStoragePrefix": "/pdfainatory/out",
   "fidelityChecklistMode": "basic",
-  "fidelityWarnMinBytes": 20480
+  "fidelityWarnMinBytes": 20480,
+  "notificationWebhookUrl": "https://ops.example.com/hooks/pdfainatory",
+  "notifyOnSuccess": false,
+  "notifyOnFailure": true
 }
 ```
 
@@ -46,7 +49,8 @@ POST payload (example):
 14. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
 15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
 16. Build fidelity checklist summary (`formula/table/multiColumn/headersFooters`) with pass/warn verdict.
-17. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
+17. Build optional operator notifications for success/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` when enabled.
+18. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
@@ -54,9 +58,11 @@ POST payload (example):
 - Scanned inputs can be blocked for mandatory pre-OCR unless OCR workaround is explicitly enabled.
 - Bilingual output is explicitly requested via `--bilingual`.
 - Each file executes independently, so one failed item should not block other items.
+- Notifications are optional and non-blocking; delivery failures do not change API response status.
 
 ## 5) Next Hardening Steps
 - Add explicit scanned PDF detection and OCR pre-route.
 - Wire audit objects to a persistent log sink (ELK/OpenSearch/Loki) with trace IDs.
 - Add persistent run-state store for resume/re-run by `runId`.
 - Add artifact publication node (S3/MinIO) and signed URL response.
+- Add email/chat adapters and dedup/rate-limit policy for notifications.

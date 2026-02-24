@@ -29,7 +29,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
   - Acceptance: predictable output path schema includes runId + source file stem + mode.
 - [x] Add fidelity verification checklist execution (formula/table/list/header/footer checks).
   - Acceptance: workflow returns a quality summary with pass/warn/fail flags.
-- [ ] Add operator notifications for success/partial/failure outcomes.
+- [x] Add operator notifications for success/partial/failure outcomes.
   - Acceptance: webhook caller and optional channel (email/chat) receive status with reason codes.
 
 ## Test Tasks

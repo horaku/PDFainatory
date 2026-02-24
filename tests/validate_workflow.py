@@ -26,6 +26,15 @@ required = {
     'Publish Artifact Metadata',
     'Build Output Naming Metadata',
     'Build Fidelity Checklist Summary',
+    'Build Success Notification',
+    'Success Notification Configured?',
+    'Send Success Notification',
+    'Build Preflight Notification',
+    'Preflight Notification Configured?',
+    'Send Preflight Notification',
+    'Build Translation Notification',
+    'Translation Notification Configured?',
+    'Send Translation Notification',
 }
 missing = required - node_names
 assert not missing, f"Missing nodes: {sorted(missing)}"
@@ -40,6 +49,9 @@ assert 'artifactBaseUrl' in validate
 assert 'artifactStoragePrefix' in validate
 assert 'fidelityChecklistMode' in validate
 assert 'fidelityWarnMinBytes' in validate
+assert 'notificationWebhookUrl' in validate
+assert 'notifyOnSuccess' in validate
+assert 'notifyOnFailure' in validate
 
 classify = next(n for n in wf['nodes'] if n['name'] == 'Classify Translation Error')['parameters']['jsCode']
 assert 'translation.transient' in classify
@@ -70,10 +82,22 @@ assert con['Preflight Passed?']['main'][1][0]['node'] == 'Build Preflight Audit 
 assert con['Build Success Audit Record']['main'][0][0]['node'] == 'Persist Run State'
 assert con['Build Preflight Audit Record']['main'][0][0]['node'] == 'Persist Run State'
 assert con['Build Translation Error Audit Record']['main'][0][0]['node'] == 'Persist Run State'
-assert con['State Is Success?']['main'][0][0]['node'] == 'Respond Success'
 assert con['State Is Success?']['main'][1][0]['node'] == 'State Is Preflight Error?'
-assert con['State Is Preflight Error?']['main'][0][0]['node'] == 'Respond Preflight Error'
-assert con['State Is Preflight Error?']['main'][1][0]['node'] == 'Respond Translation Error'
+assert con['State Is Success?']['main'][0][0]['node'] == 'Build Success Notification'
+assert con['Build Success Notification']['main'][0][0]['node'] == 'Success Notification Configured?'
+assert con['Success Notification Configured?']['main'][0][0]['node'] == 'Send Success Notification'
+assert con['Success Notification Configured?']['main'][1][0]['node'] == 'Respond Success'
+assert con['Send Success Notification']['main'][0][0]['node'] == 'Respond Success'
+assert con['State Is Preflight Error?']['main'][0][0]['node'] == 'Build Preflight Notification'
+assert con['State Is Preflight Error?']['main'][1][0]['node'] == 'Build Translation Notification'
+assert con['Build Preflight Notification']['main'][0][0]['node'] == 'Preflight Notification Configured?'
+assert con['Preflight Notification Configured?']['main'][0][0]['node'] == 'Send Preflight Notification'
+assert con['Preflight Notification Configured?']['main'][1][0]['node'] == 'Respond Preflight Error'
+assert con['Send Preflight Notification']['main'][0][0]['node'] == 'Respond Preflight Error'
+assert con['Build Translation Notification']['main'][0][0]['node'] == 'Translation Notification Configured?'
+assert con['Translation Notification Configured?']['main'][0][0]['node'] == 'Send Translation Notification'
+assert con['Translation Notification Configured?']['main'][1][0]['node'] == 'Respond Translation Error'
+assert con['Send Translation Notification']['main'][0][0]['node'] == 'Respond Translation Error'
 
 respond_success = next(n for n in wf['nodes'] if n['name'] == 'Respond Success')['parameters']['responseBody']
 respond_preflight = next(n for n in wf['nodes'] if n['name'] == 'Respond Preflight Error')['parameters']['responseBody']
