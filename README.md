@@ -10,4 +10,4 @@ Planning and implementation artifacts for an n8n-based Japanese → Russian scie
 - `docs/requirements-traceability.md`: requirement-to-workflow mapping matrix.
 - `docs/runbook.md`: operator runbook for the current workflow draft.
 - `docs/test-strategy.md`: end-to-end test strategy (coverage matrix R1..R7, levels, data catalog, gates).
-- `docs/pr-process.md`: process guidance for Codex PR update limitation and replacement-PR flow.
+- `docs/pr-process.md`: process guidance for Codex PR update limitation, clean replacement-PR flow, and `codex-fixed-*` branch convention.
