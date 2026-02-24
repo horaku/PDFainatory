@@ -20,7 +20,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const fs = require('fs');\nconst crypto = require('crypto');\n\nconst body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nif (!files.length) throw new Error('No input files provided.');\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nconst allowedServices = ['openai', 'google', 'ollama'];\nconst requestedService = (body.service ?? 'openai').toLowerCase();\nif (!allowedServices.includes(requestedService)) throw new Error(`Unsupported service: ${requestedService}`);\nconst serviceChain = [requestedService, ...allowedServices.filter(s => s !== requestedService)];\nconst safePath = (p) => {\n  if (typeof p !== 'string' || !p.trim()) throw new Error('Invalid file path');\n  if (!/^[\\w@%+=:,./\\- ]+$/u.test(p)) throw new Error(`Unsafe path characters: ${p}`);\n  return p;\n};\nconst safeOptPath = (p) => p ? safePath(p) : '';\nconst runStateDir = safePath(body.runStateDir ?? '/data/state');\nconst hashFile = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');\n\nreturn files.map((file, idx) => {\n  const inputFile = safePath(file);\n  return {\n    json: {\n      runId: body.runId ?? `${Date.now()}-${idx}`,\n      inputFile,\n      inputFileHash: hashFile(inputFile),\n      runStartedAt: new Date().toISOString(),\n      outputDir: safePath(body.outputDir ?? '/data/output'),\n      runStateDir,\n      langIn: sourceLang,\n      langOut: targetLang,\n      pages: body.pages ?? '',\n      poolMaxWorkers: Math.max(1, Math.min(8, Number(body.poolMaxWorkers ?? 2))),\n      customPromptPath: safeOptPath(body.customPromptPath ?? ''),\n      glossaryPath: safeOptPath(body.glossaryPath ?? ''),\n      primaryFontFamily: (body.primaryFontFamily ?? 'Noto Serif').replace(/[\"`]/g, ''),\n      serviceChain,\n      serviceIndex: 0,\n      currentService: serviceChain[0],\n      scannedHint: Boolean(body.scannedHint ?? false),\n      allowOcrWorkaround: Boolean(body.allowOcrWorkaround ?? false)\n    }\n  };\n});"
+        "jsCode": "const fs = require('fs');\nconst crypto = require('crypto');\n\nconst body = $json.body ?? $json;\nconst files = Array.isArray(body.files) ? body.files : (body.file ? [body.file] : []);\nif (!files.length) throw new Error('No input files provided.');\nconst sourceLang = body.langIn ?? 'ja';\nconst targetLang = body.langOut ?? 'ru';\nif (sourceLang !== 'ja' || targetLang !== 'ru') throw new Error('Pipeline currently supports only ja->ru.');\nconst allowedServices = ['openai', 'google', 'ollama'];\nconst requestedService = (body.service ?? 'openai').toLowerCase();\nif (!allowedServices.includes(requestedService)) throw new Error(`Unsupported service: ${requestedService}`);\nconst serviceChain = [requestedService, ...allowedServices.filter(s => s !== requestedService)];\nconst safePath = (p) => {\n  if (typeof p !== 'string' || !p.trim()) throw new Error('Invalid file path');\n  if (!/^[\\w@%+=:,./\\- ]+$/u.test(p)) throw new Error(`Unsafe path characters: ${p}`);\n  return p;\n};\nconst safeOptPath = (p) => p ? safePath(p) : '';\nconst runStateDir = safePath(body.runStateDir ?? '/data/state');\nconst hashFile = (filePath) => crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');\n\nreturn files.map((file, idx) => {\n  const inputFile = safePath(file);\n  return {\n    json: {\n      runId: body.runId ?? `${Date.now()}-${idx}`,\n      inputFile,\n      inputFileHash: hashFile(inputFile),\n      runStartedAt: new Date().toISOString(),\n      outputDir: safePath(body.outputDir ?? '/data/output'),\n      runStateDir,\n      artifactBaseUrl: (body.artifactBaseUrl ?? '').trim(),\n      artifactStoragePrefix: safePath(body.artifactStoragePrefix ?? '/artifacts'),\n      langIn: sourceLang,\n      langOut: targetLang,\n      pages: body.pages ?? '',\n      poolMaxWorkers: Math.max(1, Math.min(8, Number(body.poolMaxWorkers ?? 2))),\n      customPromptPath: safeOptPath(body.customPromptPath ?? ''),\n      glossaryPath: safeOptPath(body.glossaryPath ?? ''),\n      primaryFontFamily: (body.primaryFontFamily ?? 'Noto Serif').replace(/[\"`]/g, ''),\n      serviceChain,\n      serviceIndex: 0,\n      currentService: serviceChain[0],\n      scannedHint: Boolean(body.scannedHint ?? false),\n      allowOcrWorkaround: Boolean(body.allowOcrWorkaround ?? false)\n    }\n  };\n});"
       },
       "id": "Validate_Normalize",
       "name": "Validate & Normalize Input",
@@ -283,7 +283,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
+        "responseBody": "={{ { runId: $json.runId, inputFile: $json.inputFile, outputFile: $json.outputFile ?? null, outputDir: $json.outputDir, provider: $json.currentService, status: 'completed', artifact: ($json.artifact || null), runStateFile: $json.runStateFile ?? null, audit: $json.audit } }}",
         "options": {}
       },
       "id": "Respond_Success",
@@ -542,6 +542,20 @@
       "position": [
         3660,
         120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const path = require('path');\nconst outputFile = $json.outputFile || '';\nconst baseUrl = String($json.artifactBaseUrl || '').replace(/\\/$/, '');\nconst storagePrefix = String($json.artifactStoragePrefix || '/artifacts').replace(/\\/$/, '');\nconst fileName = path.basename(outputFile || '');\nconst storageKey = `${storagePrefix}/${fileName}`.replace(/\\/+/g, '/');\nconst downloadUrl = baseUrl ? `${baseUrl}${storageKey}` : '';\nreturn [{ json: { ...$json, artifact: { fileName, storageKey, downloadUrl: downloadUrl || null } } }];"
+      },
+      "id": "Publish_Artifact_Metadata",
+      "name": "Publish Artifact Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3900,
+        80
       ]
     }
   ],
@@ -921,7 +935,7 @@
       "main": [
         [
           {
-            "node": "Build Success Audit Record",
+            "node": "Publish Artifact Metadata",
             "type": "main",
             "index": 0
           }
@@ -929,6 +943,17 @@
         [
           {
             "node": "Build Translation Error Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Artifact Metadata": {
+      "main": [
+        [
+          {
+            "node": "Build Success Audit Record",
             "type": "main",
             "index": 0
           }

@@ -23,7 +23,7 @@ This backlog translates the current gaps into concrete implementation tasks for 
   - Acceptance: incomplete/corrupt outputs are detected and marked failed.
 
 ## P2 — Product Completeness
-- [ ] Add artifact publication node (S3/MinIO/local download URL).
+- [x] Add artifact publication node (S3/MinIO/local download URL).
   - Acceptance: API response includes a downloadable link or storage key for each output file.
 - [ ] Enforce bilingual output naming/versioning convention.
   - Acceptance: predictable output path schema includes runId + source file stem + mode.

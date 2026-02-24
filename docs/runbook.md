@@ -21,7 +21,9 @@ POST payload (example):
   "primaryFontFamily": "Noto Serif",
   "scannedHint": false,
   "allowOcrWorkaround": false,
-  "runStateDir": "/data/state"
+  "runStateDir": "/data/state",
+  "artifactBaseUrl": "https://files.example.com",
+  "artifactStoragePrefix": "/pdfainatory/out"
 }
 ```
 
@@ -39,7 +41,8 @@ POST payload (example):
 11. Validate output integrity by checking that a non-empty output PDF artifact exists in `outputDir` for the input stem.
 12. Build structured audit metadata (`runId`, `inputFileHash`, command args, start/end timestamps, status, error class) for every terminal path.
 13. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
-14. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile`.
+14. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
+15. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `artifact`.
 
 ## 4) Operational Expectations
 - Current pipeline is scoped to `ja -> ru` only.
