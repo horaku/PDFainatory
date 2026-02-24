@@ -52,10 +52,15 @@ assert 'fidelityWarnMinBytes' in validate
 assert 'notificationWebhookUrl' in validate
 assert 'notifyOnSuccess' in validate
 assert 'notifyOnFailure' in validate
+assert 'notifyOnPartial' in validate
 
 classify = next(n for n in wf['nodes'] if n['name'] == 'Classify Translation Error')['parameters']['jsCode']
 assert 'translation.transient' in classify
 assert 'translation.non_retryable_input' in classify
+
+success_notification = next(n for n in wf['nodes'] if n['name'] == 'Build Success Notification')['parameters']['jsCode']
+assert 'success.partial_recovered' in success_notification
+assert 'notifyOnPartial' in success_notification
 
 build = next(n for n in wf['nodes'] if n['name'] == 'Build Translation Command')['parameters']['jsCode']
 assert '--bilingual' in build

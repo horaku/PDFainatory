@@ -28,6 +28,7 @@ POST payload (example):
   "fidelityWarnMinBytes": 20480,
   "notificationWebhookUrl": "https://ops.example.com/hooks/pdfainatory",
   "notifyOnSuccess": false,
+  "notifyOnPartial": true,
   "notifyOnFailure": true
 }
 ```
@@ -49,7 +50,7 @@ POST payload (example):
 14. Persist per-file run-state JSON (`runStateDir`, default `/data/state`) for resumable reruns.
 15. Build artifact publication metadata (`artifact.storageKey`, optional `artifact.downloadUrl`) for successful outputs.
 16. Build fidelity checklist summary (`formula/table/multiColumn/headersFooters`) with pass/warn verdict.
-17. Build optional operator notifications for success/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` via n8n HTTP Request nodes when enabled.
+17. Build optional operator notifications for success/partial/preflight-failure/translation-failure and POST JSON payload to `notificationWebhookUrl` via n8n HTTP Request nodes when enabled.
 18. Return response JSON with operation status plus `audit` object, retry fields (`retryable`, `retryAttempt`), `runStateFile`, and (on success) `outputFile` + `outputNaming` + `artifact` + `qualitySummary`.
 
 ## 4) Operational Expectations
